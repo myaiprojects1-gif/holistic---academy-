@@ -1,0 +1,38 @@
+# Keeps the Holistic Academy Supabase database awake.
+# The free Supabase plan pauses a project after about 1 week without activity.
+# Every 3 days this job makes one small read through the public API.
+# It uses the same public (anon) key that index.html already uses, so it can
+# only read what a logged-out visitor could read. App code is not involved.
+name: Keep database awake
+
+on:
+  schedule:
+    - cron: "17 6 */3 * *"   # 06:17 UTC every 3 days
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read one row from the database
+        env:
+          SUPABASE_URL: https://tyebwrojdugjbtayiblx.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5ZWJ3cm9qZHVnamJ0YXlpYmx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3Mzg1NjksImV4cCI6MjEwODMxNDU2OX0.WYNQzLIjIPIdOq7sW7O5E81w22HcH6iOcvA_GeQorMs
+        run: |
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
+              "$SUPABASE_URL/rest/v1/settings?select=key&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+            echo "Attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Database is awake."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::Database did not answer (HTTP $code). It may be paused: open the Supabase dashboard and press Restore."
+          exit 1
