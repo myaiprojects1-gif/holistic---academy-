@@ -26,7 +26,7 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 \
               "$SUPABASE_URL/rest/v1/settings?select=key&limit=1" \
               -H "apikey: $SUPABASE_ANON_KEY" \
-              -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY") || code="000"
             echo "Attempt $attempt: HTTP $code"
             if [ "$code" = "200" ]; then
               echo "Database is awake."
@@ -34,5 +34,9 @@ jobs:
             fi
             sleep 20
           done
-          echo "::error::Database did not answer (HTTP $code). It may be paused: open the Supabase dashboard and press Restore."
+          if [ "$code" = "000" ]; then
+            echo "::error::Could not reach $SUPABASE_URL at all. The Supabase project is probably paused: open the Supabase dashboard and press Restore."
+          else
+            echo "::error::Database answered HTTP $code instead of 200."
+          fi
           exit 1
